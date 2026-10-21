@@ -5,6 +5,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`agy` provider (Google Antigravity CLI).** `CLAUDISH_PROVIDER=agy` rewrites
+  through `agy -p` with the CLI's cached login, so people who already use
+  Antigravity need no API key or local model server. `CLAUDISH_MODEL` picks the
+  model, `CLAUDISH_AGY_EFFORT` the effort, and `CLAUDISH_AGY_WORKDIR` the
+  scratch directory it runs in (never the project). A missing login shows a
+  notice telling you to run `agy` once; like every provider it fails open.
+
 ## [0.10.0] - 2026-10-09
 
 ### Added

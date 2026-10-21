@@ -20,6 +20,10 @@
 #   codex      the OpenAI codex CLI, non-interactively (codex exec); uses the
 #              CLI's own login, so no API key and no local model server. The
 #              rewrite runs with --sandbox read-only outside any repo.
+#   agy        the Google Antigravity CLI headless (agy -p); uses the CLI's
+#              cached login from an interactive `agy` run, so no API key. Runs
+#              in CLAUDISH_AGY_WORKDIR (default a private temp dir), never the
+#              project, so the agent has no repo to act on.
 #   anthropic  Anthropic Messages API; key from CLAUDISH_ANTHROPIC_KEY or
 #              ANTHROPIC_API_KEY; base URL from CLAUDISH_ANTHROPIC_URL
 #   openai     any OpenAI-compatible /chat/completions endpoint (OpenAI,
@@ -44,6 +48,10 @@
 #   CLAUDISH_CODEX_EFFORT   model_reasoning_effort for the codex provider (e.g.
 #                           "low"). Unset uses the codex CLI's configured
 #                           effort. Applies to the rewrite only.
+#   CLAUDISH_AGY_EFFORT     --effort (low|medium|high) for the agy provider.
+#                           Unset uses the Antigravity CLI default.
+#   CLAUDISH_AGY_WORKDIR    working directory for agy -p (default
+#                           ${TMPDIR:-/tmp}/claudish-agy-ws).
 #
 # The caller must define dbg() and set LLM_TIMEOUT before calling
 # llm_complete, and may set TIMEOUT_HINT to customize llm_notice_why's
@@ -89,6 +97,7 @@ case "$PROVIDER" in
   anthropic) MODEL="${CLAUDISH_MODEL:-claude-haiku-4-5}" ;;
   openai)    MODEL="${CLAUDISH_MODEL:-gpt-5.6-luna}" ;;
   codex)     MODEL="${CLAUDISH_MODEL:-}" ;;  # empty = the codex CLI's configured default
+  agy)       MODEL="${CLAUDISH_MODEL:-}" ;;  # empty = the Antigravity CLI's default (see `agy models`)
   *)         MODEL="${CLAUDISH_MODEL:-gemma4:26b-mlx}" ;;
 esac
 
@@ -309,6 +318,48 @@ $_user" >/dev/null 2>"$_errf" &
       fi
       rm -f "$_out" "$_errf" 2>/dev/null
       ;;
+    agy)
+      if ! command -v agy >/dev/null 2>&1; then
+        dbg "agy: CLI not found"; curl_rc=1; return 0
+      fi
+      _out="$(mktemp "${TMPDIR:-/tmp}/claudish-agy-out.XXXXXX" 2>/dev/null)" || return 2
+      _errf="$(mktemp "${TMPDIR:-/tmp}/claudish-agy-err.XXXXXX" 2>/dev/null)" || { rm -f "$_out"; return 2; }
+      trap 'rm -f "$_out" "$_errf" 2>/dev/null' EXIT
+      # agy -p prints the answer on stdout, diagnostics on stderr. Like codex
+      # it has no system channel, so the system prompt is prepended. It runs
+      # in a scratch dir, not the user's project, so the agent has no files
+      # to touch. Same background-and-kill timeout as codex (no timeout(1)
+      # on stock macOS); --print-timeout is a second guard on agy's side.
+      _ws="${CLAUDISH_AGY_WORKDIR:-${TMPDIR:-/tmp}/claudish-agy-ws}"
+      mkdir -p "$_ws" 2>/dev/null || { rm -f "$_out" "$_errf"; return 2; }
+      ( cd "$_ws" && exec agy -p "$_sys
+
+$_user" ${MODEL:+--model "$MODEL"} \
+          ${CLAUDISH_AGY_EFFORT:+--effort "$CLAUDISH_AGY_EFFORT"} \
+          --output-format text --print-timeout "${LLM_TIMEOUT}s" ) >"$_out" 2>"$_errf" &
+      _pid=$!
+      _t=0
+      while kill -0 "$_pid" 2>/dev/null; do
+        if [ "$_t" -ge "$LLM_TIMEOUT" ]; then
+          kill -TERM "$_pid" 2>/dev/null; wait "$_pid" 2>/dev/null
+          curl_rc=28
+          rm -f "$_out" "$_errf" 2>/dev/null
+          dbg "agy timed out after ${LLM_TIMEOUT}s"
+          return 0
+        fi
+        sleep 1; _t=$((_t + 1))
+      done
+      wait "$_pid"; _rc=$?
+      rewrite="$(cat "$_out" 2>/dev/null)"
+      if [ "$_rc" != "0" ]; then
+        # An unauthenticated headless run exits non-zero with "authentication
+        # required" on stderr; that text becomes the notice.
+        err="$(tail -c 400 "$_errf" 2>/dev/null)"
+        err="${err:-agy failed with exit $_rc}"
+        rewrite=""
+      fi
+      rm -f "$_out" "$_errf" 2>/dev/null
+      ;;
     *)
       req="$(jq -n --arg m "$MODEL" --arg s "$_sys" --arg u "$_user" \
             '{model:$m,stream:false,think:false,options:{temperature:0.3},messages:[{role:"system",content:$s},{role:"user",content:$u}]}' 2>/dev/null)"
@@ -394,6 +445,18 @@ llm_notice_why() {
         NOTICE_WHY="the rewrite timed out after ${LLM_TIMEOUT}s — ${TIMEOUT_HINT:-raise the timeout}"
       elif [ -n "${err:-}" ]; then
         NOTICE_WHY="codex error: ${err}"
+      fi
+      ;;
+    agy)
+      if ! command -v agy >/dev/null 2>&1; then
+        NOTICE_WHY="the agy CLI is not on PATH (install Antigravity or pick another CLAUDISH_PROVIDER), so rewrites are off"
+      elif [ "$curl_rc" = "28" ]; then
+        NOTICE_WHY="the rewrite timed out after ${LLM_TIMEOUT}s — ${TIMEOUT_HINT:-raise the timeout}"
+      elif [ -n "${err:-}" ]; then
+        case "$err" in
+          *[Aa]uthenticat*) NOTICE_WHY="agy is not logged in — run \`agy\` once interactively to sign in" ;;
+          *) NOTICE_WHY="agy error: ${err}" ;;
+        esac
       fi
       ;;
     *)
