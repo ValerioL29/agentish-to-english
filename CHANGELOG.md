@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Codex CLI and Grok Build plugin packaging for on-demand rewrites.** Neither
+  host has a hook that can change displayed assistant text, so a shared
+  `claudish-rewrite` skill and a Grok file/URL command call the existing
+  `claudish-md.sh` only when asked. The manifests explicitly disable plugin
+  hooks, and Grok overrides command discovery, so installing the repository
+  cannot accidentally load Claude-specific hooks or controls. Claude Code's
+  existing display and Markdown hooks are unchanged.
+
 ## [0.10.0] - 2026-10-09
 
 ### Added

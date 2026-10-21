@@ -163,6 +163,58 @@ Run `/reload-plugins` after edits; if it doesn't load, check the `/plugin`
 
 ---
 
+## Codex CLI and Grok Build
+
+Both hosts can use the shared `claudish-rewrite` skill to rewrite a file, URL,
+or pasted text when you explicitly ask. Files and URLs produce `NAME.plain.md`
+and a one-line reply naming it; pasted text is rewritten in the reply. Ask for
+an output language, or use `-l LANGUAGE` with the script. Neither host has a
+hook that can change displayed assistant text, so there is **no automatic
+per-message rewrite** in Codex CLI or Grok Build.
+
+**Codex CLI:** install the checkout from its repo path using the
+[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually).
+Add it to a repo or personal marketplace, with the catalog entry's
+`source.path` pointing to the checkout relative to the marketplace root. You
+can register that marketplace with:
+
+```bash
+codex plugin marketplace add /path/to/local-marketplace-root
+```
+
+That command registers a marketplace catalog; follow the linked instructions
+to install and enable the plugin. The Codex manifest is
+`.codex-plugin/plugin.json`. Invoke the skill explicitly, for example:
+`$claudish-rewrite rewrite notes.md in plain language`.
+
+**Grok Build:** install from the repository URL or a local checkout:
+
+```bash
+grok plugin install https://github.com/gvzdv/claudish-to-english --trust
+```
+
+Or try the checkout for one session:
+
+```bash
+grok --plugin-dir /path/to/claudish-to-english
+```
+
+Use `/claudish-file <path or URL>` for a sibling file (or
+`/claudish-to-english:claudish-file` on a name collision), or ask for the shared
+skill. See the
+[Grok plugin docs](https://docs.x.ai/build/features/skills-plugins-marketplaces).
+The Grok manifest is `.grok-plugin/plugin.json`.
+
+The same `bash`, `jq`, `curl`, and [provider setup](#providers) apply. Export
+`CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, and any provider key or endpoint in the
+shell **before launching Codex or Grok**, so script calls inherit them. The
+script also honours existing language and model flag-file overrides from
+`/claudish`. Both manifests explicitly disable plugin hooks, and Grok loads
+`grok-commands/`, so the Claude hook and command files are not picked up by
+convention.
+
+---
+
 ## Configuring the plugin
 
 There are two ways to control claudish, and they complement each other:
@@ -728,10 +780,20 @@ local unless you understand and accept it.
 ```
 claudish-to-english/
 ├── .claude-plugin/
-│   ├── plugin.json         # plugin manifest
+│   ├── plugin.json         # Claude Code manifest
 │   └── marketplace.json    # so the repo can be added as a marketplace directly
+├── .codex-plugin/
+│   └── plugin.json         # Codex skill packaging; explicitly disables Claude hooks
+├── .grok-plugin/
+│   └── plugin.json         # Grok skill packaging; overrides Claude hooks and commands
 ├── commands/
 │   └── claudish.md         # /claudish slash command (runtime on/off, mode, language, model, last, file)
+├── grok-commands/
+│   └── claudish-file.md    # Grok on-demand file/URL rewrite command
+├── skills/
+│   └── claudish-rewrite/
+│       ├── SKILL.md        # shared on-demand rewrite instructions; explicit requests only
+│       └── agents/openai.yaml # disables implicit skill invocation in Codex
 ├── hooks/
 │   └── hooks.json          # SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
 ├── rewrite.sh              # display-rewrite hook
