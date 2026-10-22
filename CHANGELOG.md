@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Codex append-mode Stop hook (`codex-stop.sh`).** When a Codex turn ends, the
+  final answer is rewritten through `rewrite.sh` and shown as a `systemMessage`
+  below the original (Codex has no replace mode). It prints `{}` when skipped or
+  failed, and runs only after you trust it in `/hooks`. The nested `codex exec` of the codex
+  provider now passes `--disable hooks`.
 - **Codex CLI and Grok Build plugin packaging for on-demand rewrites.** Neither
   host has a hook that can change displayed assistant text, so a shared
   `claudish-rewrite` skill and a Grok file/URL command call the existing

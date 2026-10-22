@@ -1,0 +1,17 @@
+{
+  "description": "claudish-to-english for Codex: append a plain-language rewrite of the final assistant message as a systemMessage when a turn stops.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/codex-stop.sh\"",
+            "timeout": 60,
+            "statusMessage": "claudish: rewriting in plain language"
+          }
+        ]
+      }
+    ]
+  }
+}

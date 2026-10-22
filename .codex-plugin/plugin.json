@@ -1,6 +1,6 @@
 {
   "name": "claudish-to-english",
-  "description": "Rewrite a file, URL, or pasted text into plain language on request with the claudish-rewrite skill. No automatic assistant-message rewriting in Codex.",
+  "description": "Plain-language rewrites for Codex: a Stop hook appends a plain-language copy of each final answer (after you trust it via /hooks), and the claudish-rewrite skill rewrites a file, URL, or pasted text on request.",
   "version": "0.10.0",
   "author": {
     "name": "Mike Gvozdev",
@@ -20,7 +20,5 @@
     "codex"
   ],
   "skills": "./skills/",
-  "hooks": {
-    "hooks": {}
-  }
+  "hooks": "./hooks/codex-hooks.json"
 }

@@ -282,7 +282,9 @@ llm_complete() {
       # CLAUDISH_CODEX_EFFORT overrides the CLI's configured reasoning effort
       # for the rewrite only ("low" keeps a per-message rewrite at seconds
       # even when the CLI's coding default is a high-effort tier).
-      codex exec --sandbox read-only --skip-git-repo-check -C "${TMPDIR:-/tmp}" \
+      # --disable hooks: the rewrite must never fire hooks (incl. this plugin's
+      # own Codex Stop hook) — that would recurse.
+      codex exec --disable hooks --sandbox read-only --skip-git-repo-check -C "${TMPDIR:-/tmp}" \
         ${MODEL:+-m "$MODEL"} \
         ${CLAUDISH_CODEX_EFFORT:+-c "model_reasoning_effort=${CLAUDISH_CODEX_EFFORT}"} \
         -o "$_out" "$_sys
