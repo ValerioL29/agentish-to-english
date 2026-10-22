@@ -28,6 +28,50 @@ file, URL, or pasted text **on demand** — `/claudish file <path or URL>` in a 
 > (provider down, timeout, missing key or dependency), you simply see Claude's
 > original text. The plugin can never swallow or corrupt an answer.
 
+## Supported hosts
+
+This fork ([ValerioL29/agentish-to-english](https://github.com/ValerioL29/agentish-to-english))
+adds Codex and Antigravity support to the upstream Claude Code plugin,
+[gvzdv/claudish-to-english](https://github.com/gvzdv/claudish-to-english) by
+Mike Gvozdev. The same scripts and settings drive every host. What differs is
+how each host lets a hook show text.
+
+| Host | Mode | How the rewrite appears | Status |
+| --- | --- | --- | --- |
+| Claude Code (CLI, desktop, IDE) | replace or append, plus on-demand `/claudish file` | `MessageDisplay` hook changes what you see; history keeps the original | tested (upstream) |
+| Codex CLI | append | Stop hook `systemMessage`, a warning-styled block under the answer | tested |
+| Codex app (ChatGPT desktop) | append | same Stop hook and `systemMessage`; the app shows hook messages as warnings | untested |
+| Antigravity CLI (`agy`) | append | Stop hook makes the agent echo the rewrite as an extra reply | tested (prototype) |
+| Antigravity App / IDE | append | same Stop hook, loaded from `~/.gemini/config/` | untested |
+| Grok Build (CLI / ACP) | — | Grok ignores stdout of `Stop` and other passive hooks, so nothing can be shown | not possible |
+
+"Tested" means someone ran it end to end on Linux. "Untested" means the
+host's docs say it loads the same hook, but nobody has run it in that app yet.
+Every host fails open: if the rewrite fails, you see the original answer and
+nothing else.
+
+The same environment variables work on every host. The ones you will most
+likely set:
+
+```bash
+export CLAUDISH_PROVIDER=codex     # ollama (default), codex, agy, anthropic, openai
+# export CLAUDISH_MODEL=...      # optional; each provider has a default
+export CLAUDISH_CODEX_EFFORT=low   # codex provider only; faster rewrites
+export CLAUDISH_TIMEOUT=45         # seconds; keep the hook timeout >= this + 20
+export CLAUDISH_LANG=English       # output language (the name is CLAUDISH_LANG)
+export CLAUDISH_PROMPT_FILE=~/my-prompt.txt   # optional custom rewrite prompt
+```
+
+Export them before you start the CLI. Desktop apps don't read your shell
+profile, so see each host's section. The full list is in
+[Configuration (env vars)](#configuration-env-vars).
+
+| Host | Install | Turn off |
+| --- | --- | --- |
+| Claude Code | [Install](#install) | `/claudish off`, or disable the plugin |
+| Codex CLI and app | [Codex](#codex-cli-and-codex-app-append-mode-only) | disable the hook in `/hooks` or Settings |
+| Antigravity CLI, App, IDE | [Antigravity](#antigravity-cli-app-and-ide-prototype-append-mode-only) | `agy plugin disable claudish-to-english`, or toggle it in Customizations > Hooks |
+| Grok Build | [Grok Build](#grok-build-not-supported) | — |
 
 ---
 
@@ -140,13 +184,17 @@ Notes:
 Directly from this repository (also serves its own marketplace):
 
 ```shell
-/plugin marketplace add gvzdv/claudish-to-english
+/plugin marketplace add ValerioL29/agentish-to-english
 ```
 ```shell
 /plugin install claudish-to-english@gvzdv-plugins
 ```
 
-The plugin is `Submitted and pending review` on the Claude Marketplace since August 10.  
+To get the upstream version without the Codex and Antigravity changes, use
+`/plugin marketplace add gvzdv/claudish-to-english` instead. Both use the
+marketplace name `gvzdv-plugins`, so add only one.
+
+The upstream plugin is `Submitted and pending review` on the Claude Marketplace since August 10.  
 ~~After review by the Anthropic team, the plugin will be available to install from the community marketplace:~~  
 ~~/plugin marketplace add anthropics/claude-plugins-community~~  
 ~~/plugin install claudish-to-english@claude-community~~  
@@ -164,10 +212,12 @@ Run `/reload-plugins` after edits; if it doesn't load, check the `/plugin`
 
 ---
 
-## Antigravity CLI (prototype, append mode only)
+## Antigravity CLI, App, and IDE (prototype, append mode only)
 
 > **Prototype.** Tested on the Antigravity CLI (`agy`) only, on Linux, in
-> October 2026. Not tested in the Antigravity App or IDE.
+> October 2026. The App and IDE read the same hook files
+> ([hooks docs](https://antigravity.google/docs/hooks/)), but nobody has run
+> the plugin there yet.
 
 Antigravity has no hook that can display text or replace the reply, so the
 Antigravity plugin works around it with the `Stop` hook (`agy-stop.sh`):
@@ -193,10 +243,11 @@ normally. `CLAUDISH_HOOK_DEPTH` is exported for the rewrite, so a nested
 `agy -p` rewrite (from the agy provider, if you use it) exits the hook right
 away.
 
-**Install:**
+**Install (CLI):**
 
 ```bash
-agy plugin install /path/to/claudish-to-english/antigravity-plugin
+git clone https://github.com/ValerioL29/agentish-to-english
+agy plugin install ./agentish-to-english/antigravity-plugin
 ```
 
 This copies the plugin, with its symlinked scripts dereferenced, to
@@ -213,6 +264,33 @@ working directory. For a single workspace, you can instead point
 
 The 620s timeout is `CLAUDISH_TIMEOUT` (sized for 600) plus 20s. Export the
 `CLAUDISH_*` variables before you launch `agy`.
+
+**Install (Antigravity App or IDE, untested):** both read global hooks from
+`~/.gemini/config/hooks.json` and workspace hooks from `.agents/hooks.json`.
+Use an absolute path, because the docs don't say which working directory the
+App and IDE give plugin hooks:
+
+```json
+{"claudish-append": {"Stop": [{"type": "command",
+  "command": "bash /path/to/agentish-to-english/agy-stop.sh", "timeout": 620}]}}
+```
+
+Then check that it is on in Settings > Customizations > Hooks (App) or
+… > Customizations > Hooks in the agent side panel (IDE). A desktop app does
+not inherit variables from your shell, so put settings you need, such as
+`CLAUDISH_PROVIDER`, in the command itself:
+`"command": "CLAUDISH_PROVIDER=agy bash /path/to/agentish-to-english/agy-stop.sh"`.
+The App and IDE keep transcripts under `~/.gemini/antigravity` and
+`~/.gemini/antigravity-ide`. The hook reads whatever `transcriptPath` the
+payload gives and also accepts `transcript.jsonl` or `transcript_full.jsonl`
+in that folder, so it doesn't depend on which app runs it. If you installed
+the plugin with `agy plugin install`, don't also add this entry, or the hook
+runs twice.
+
+**Turn it off:** `agy plugin disable claudish-to-english` (or `uninstall`),
+`enabled: false` on the `claudish-append` entry in a `hooks.json`, the
+Customizations > Hooks toggle in the App or IDE, `CLAUDISH_ENABLED=0`, or the
+off-file (`~/.claude/claudish-off`).
 
 **Caveats:**
 
@@ -232,17 +310,36 @@ The 620s timeout is `CLAUDISH_TIMEOUT` (sized for 600) plus 20s. Export the
 
 ---
 
-## Codex CLI (append mode only)
+## Codex CLI and Codex app (append mode only)
 
 The Codex plugin does one thing: an **append-mode Stop hook**. Codex has no
 hook that can change displayed assistant text, so there is no `replace` mode
 and no on-demand skill or command; the Claude Code plugin is unaffected.
 
-**Install:** add the checkout to a repo or personal marketplace following the
-[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
-(`source.path` points to the checkout relative to the marketplace root), e.g.
-`codex plugin marketplace add /path/to/local-marketplace-root`, then install
-and enable it. The Codex manifest is `.codex-plugin/plugin.json`.
+**Install (Codex CLI):** Codex reads this repo's marketplace file, so you can
+add it straight from GitHub:
+
+```bash
+codex plugin marketplace add ValerioL29/agentish-to-english
+codex plugin add claudish-to-english@gvzdv-plugins
+```
+
+For a local checkout, use `codex plugin marketplace add /path/to/agentish-to-english`.
+Codex uses `.codex-plugin/plugin.json`, which loads only
+`hooks/codex-hooks.json`. Then open `/hooks` and trust the Stop hook (below).
+
+**Codex app (ChatGPT desktop), untested.** The app and the CLI share
+`~/.codex` (config, plugins, and hook trust) on the same machine, and the
+[plugins docs](https://learn.chatgpt.com/docs/plugins) say the desktop app can
+install plugins. So a plugin added with the commands above should also load in
+the app. If the app asks you to review hooks, trust the
+`claudish-to-english` Stop hook in its hook settings. The
+[hooks docs](https://learn.chatgpt.com/docs/hooks) say a `systemMessage` is
+shown "as a warning in the UI or event stream", so expect a warning-style
+block, not a normal reply. Two things to watch: the app does not get variables
+from your shell, so set `CLAUDISH_*` values somewhere the app's process sees
+them (or rely on the defaults); and plugin hooks don't run in
+cloud-orchestrated ChatGPT Work threads, only local ones.
 
 **Codex append mode (Stop hook).** The Codex manifest points `hooks` at
 `hooks/codex-hooks.json` (so Claude's `hooks/hooks.json` is never loaded by
@@ -278,7 +375,7 @@ Code `append` display mode as closely as Codex allows:
   e.g. `CLAUDISH_CODEX_EFFORT=low`).
 
 Codex does **not** run plugin hooks until you trust them. After installing,
-open `/hooks` in the Codex CLI, review the `claudish-to-english` Stop hook and
+open `/hooks` in the Codex CLI (or the hooks settings in the app), review the `claudish-to-english` Stop hook and
 trust it (re-trust after updating the plugin, because trust is tied to the hook's
 hash). To turn it off, disable that hook in `/hooks`, set
 `CLAUDISH_ENABLED=0` before launching Codex, or create the off-file
@@ -291,6 +388,24 @@ The same `bash`, `jq`, `curl`, and [provider setup](#providers) apply. Export
 shell **before launching Codex**, so the hook inherits them. The Codex manifest
 loads only `hooks/codex-hooks.json`, so Claude's `hooks/hooks.json` and
 `/claudish` command are not picked up.
+
+---
+
+## Grok Build (not supported)
+
+Grok Build can load Claude Code hook files (`.claude/settings.json`) and its
+own plugins, but its [hooks docs](https://docs.x.ai/build/features/hooks)
+say that "for passive events, stdout is ignored". `Stop` is passive, and
+`PreToolUse` is the only event that can change anything. There is no
+`MessageDisplay` event and no way for a hook to show text or start another
+turn, so neither replace nor append mode can work. Grok Build runs as a TUI,
+headless, or over ACP inside other apps; we found no separate Grok desktop app
+with its own hook system. A Grok plugin was drafted on the
+`wip/grok-build-plugin` branch and shelved for this reason.
+
+If you open a project in Grok Build that has this plugin in
+`.claude/settings.json`, the hooks may still run and spend a rewrite call with
+nothing shown. Set `CLAUDISH_ENABLED=0` for Grok sessions to avoid that.
 
 ---
 
@@ -826,6 +941,10 @@ the Markdown hook (`PostToolUse`) has a 180s `timeout` — the file hook is high
 because a large model rewriting a long document can take a couple of minutes.
 `CLAUDISH_TIMEOUT` and `CLAUDISH_MD_TIMEOUT` keep the LLM call itself bounded
 below those ceilings, so it fails open cleanly instead of being killed mid-write.
+
+The Codex (`hooks/codex-hooks.json`) and Antigravity (`antigravity-plugin/hooks.json`)
+Stop hooks have a 620s `timeout`. Keep that at least `CLAUDISH_TIMEOUT` + 20s;
+if you raise `CLAUDISH_TIMEOUT` past 600, raise the hook timeout too.
 
 **Quick kill switch:** set `CLAUDISH_ENABLED=0` or disable the plugin (both apply
 only from the next session start), or `touch ~/.claude/claudish-off` to pause a

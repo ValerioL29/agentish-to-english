@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping out. This plugin is a handful of bash scripts wired to Claude
-Code hooks, so contributing is mostly: change a script, prove it still fails
+Code hooks (plus Stop hooks for Codex and Antigravity), so contributing is mostly: change a script, prove it still fails
 open, add a changelog entry.
 
 - [Ground rules](#ground-rules)
@@ -202,6 +202,32 @@ prompt and the frontmatter split live **only** in `md-core.sh`: change them ther
 and both the hook and the CLI follow. The two callers differ only in failure
 policy. The hook passes through silently; the CLI refuses to run without all
 three libraries and reports every failure.
+
+### Codex and Antigravity hooks wrap `rewrite.sh`
+
+`codex-stop.sh` and `agy-stop.sh` don't rewrite anything themselves. They feed
+the final answer to `rewrite.sh` as a fake `MessageDisplay` stream in append
+mode and turn the result into the host's output: a `systemMessage` for Codex,
+`decision: "continue"` with the rewrite in `reason` for Antigravity. So a
+change to `rewrite.sh`'s append block changes what Codex and Antigravity show.
+
+Both export `CLAUDISH_HOOK_DEPTH=1` and exit early when it is already set.
+That stops a nested `codex exec` or `agy -p` (the codex and agy providers)
+from running the hook again. The codex provider also passes `--disable hooks`.
+Keep both guards. `antigravity-plugin/` holds symlinks to the shared scripts;
+`agy plugin install` copies the real files, so reinstall after edits.
+
+Quick fail-open checks (each must print `{}`):
+
+```bash
+printf 'not json' | bash codex-stop.sh; echo
+printf 'not json' | bash agy-stop.sh; echo
+CLAUDISH_HOOK_DEPTH=1 bash agy-stop.sh </dev/null; echo
+```
+
+The Codex app, Antigravity App and IDE, and Grok Build have no automated
+coverage. Mark anything you only read in their docs as untested in the
+README's Supported hosts table.
 
 ---
 
