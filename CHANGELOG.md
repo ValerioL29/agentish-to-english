@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provider now passes `--disable hooks`. The hook timeout is 620s so it
   covers `CLAUDISH_TIMEOUT` up to 600s plus ~20s overhead. No skills or
   commands are shipped for Codex, and Claude Code's hooks are unchanged.
+- **`agy` provider (Google Antigravity CLI).** `CLAUDISH_PROVIDER=agy` rewrites
+  through `agy -p` with the CLI's cached login, so people who already use
+  Antigravity need no API key or local model server. `CLAUDISH_MODEL` picks the
+  model, `CLAUDISH_AGY_EFFORT` the effort, and `CLAUDISH_AGY_WORKDIR` the
+  scratch directory it runs in (never the project). A missing login shows a
+  notice telling you to run `agy` once; like every provider it fails open.
 
 ## [0.10.0] - 2026-10-09
 
