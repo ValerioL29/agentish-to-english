@@ -3,6 +3,10 @@
 A Claude Code plugin: a `MessageDisplay` hook shows a plain-language rewrite of
 each assistant message, produced by a local or remote LLM. **Display-only** —
 Claude's reasoning and the saved transcript always keep the original text.
+This fork (ValerioL29/agentish-to-english, upstream gvzdv/claudish-to-english)
+also ships append-mode Stop hooks for Codex (CLI and app) and Antigravity (CLI,
+App, IDE). Grok Build can't display hook output and is not supported. See the
+README's Supported hosts table.
 
 Plain bash + `jq` + `curl`. No build, no test suite, no dependencies to install.
 

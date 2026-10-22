@@ -67,6 +67,14 @@ case "$reason" in model_stop|no_tool_call) ;; *) allow ;; esac
 
 tp="$(get '.transcriptPath // empty')"
 tp="${tp/#\~/$HOME}"
+# The App, IDE and CLI keep transcripts under different app_data_dirs
+# (~/.gemini/antigravity, antigravity-ide, antigravity-cli); we only trust the
+# payload's path, but accept either file name in that same logs directory.
+if [ ! -f "$tp" ] && [ -n "$tp" ]; then
+  for alt in "${tp%/*}/transcript_full.jsonl" "${tp%/*}/transcript.jsonl"; do
+    [ -f "$alt" ] && { tp="$alt"; break; }
+  done
+fi
 [ -f "$tp" ] || allow
 msg="$(jq -rs 'map(select(.type=="PLANNER_RESPONSE" and (.source//"MODEL")=="MODEL" and ((.content//"")|length>0))) | last | .content // empty' "$tp" 2>/dev/null)"
 [ -n "${msg//[[:space:]]/}" ] || allow

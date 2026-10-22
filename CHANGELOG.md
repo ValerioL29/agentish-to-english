@@ -32,6 +32,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scratch directory it runs in (never the project). A missing login shows a
   notice telling you to run `agy` once; like every provider it fails open.
 
+### Docs
+- README: a **Supported hosts** table (Claude Code, Codex CLI, Codex app,
+  Antigravity CLI, Antigravity App/IDE, Grok Build) with mode, display, and
+  test status, plus install, trust, settings, and off-switch steps for each.
+  Install commands now point at this fork, `ValerioL29/agentish-to-english`;
+  the upstream `gvzdv/claudish-to-english` is still credited and linked.
+  Codex installs straight from GitHub with
+  `codex plugin marketplace add ValerioL29/agentish-to-english`.
+- Grok Build is documented as not supported: its passive hooks can't show
+  text or continue a turn.
+
+### Changed
+- `agy-stop.sh` also accepts `transcript.jsonl` or `transcript_full.jsonl` in
+  the folder of the payload's `transcriptPath`, so the hook works whichever
+  file name the Antigravity CLI, App, or IDE reports.
+
 ## [0.10.0] - 2026-10-09
 
 ### Added
