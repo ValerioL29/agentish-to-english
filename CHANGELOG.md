@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Antigravity CLI plugin prototype, append mode only (`antigravity-plugin/`,
+  `agy-stop.sh`).** Antigravity has no hook that can display or replace text.
+  The plugin's Stop hook rewrites the final answer through `rewrite.sh` and
+  returns `decision: "continue"` with the rewrite embedded. The agent then
+  echoes the rewrite verbatim in one extra turn. A per-conversation marker file
+  stops the second Stop from looping, `CLAUDISH_HOOK_DEPTH` stops nested
+  rewrites from re-entering the hook, and every error fails open to `{}`.
+
 ## [0.10.0] - 2026-10-09
 
 ### Added

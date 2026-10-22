@@ -23,6 +23,7 @@ the two ever disagree.
 | `lang.sh` | output-language resolver + the sanitiser for untrusted config values. Sourced by both hooks and the CLI |
 | `commands/claudish.md` | the `/claudish` slash command |
 | `hooks/hooks.json` | wires the three hooks |
+| `agy-stop.sh` + `antigravity-plugin/` | Antigravity Stop hook prototype (append mode via a verbatim echo pass); plugin dir symlinks the scripts |
 
 Config precedence is consistent throughout: **flag file > env var > settings
 file > built-in default**. Flag files exist because env vars are frozen at
