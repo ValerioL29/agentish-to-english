@@ -1,0 +1,23 @@
+{
+  "name": "claudish-to-english",
+  "description": "Plain-language rewrites for Codex, append mode only: a Stop hook appends a plain-language copy of each final answer as a systemMessage (after you trust it via /hooks).",
+  "version": "0.10.0",
+  "author": {
+    "name": "Mike Gvozdev",
+    "email": "mv.gvozdev@gmail.com",
+    "url": "https://github.com/gvzdv"
+  },
+  "homepage": "https://github.com/gvzdv/claudish-to-english#readme",
+  "repository": "https://github.com/gvzdv/claudish-to-english",
+  "license": "MIT",
+  "keywords": [
+    "ollama",
+    "local-llm",
+    "anthropic",
+    "openai",
+    "readability",
+    "plain-language",
+    "codex"
+  ],
+  "hooks": "./hooks/codex-hooks.json"
+}

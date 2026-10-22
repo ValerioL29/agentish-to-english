@@ -9,6 +9,7 @@
 
 A Claude Code plugin that shows a **plain-English rewrite** of each assistant
 message, produced by a **local LLM via ollama** (default), the **codex CLI**,
+the **Google Antigravity CLI**,
 the **Anthropic API**, or any **OpenAI-compatible API**. It is **display-only**:
 Claude's own reasoning and the saved transcript keep the original text — only
 what you read on screen changes.
@@ -228,6 +229,68 @@ The 620s timeout is `CLAUDISH_TIMEOUT` (sized for 600) plus 20s. Export the
 - The hook payload differed from the docs in testing. `terminationReason` was
   `NO_TOOL_CALL`, and `transcriptPath` pointed at `transcript_full.jsonl`. The
   hook accepts both forms.
+
+---
+
+## Codex CLI (append mode only)
+
+The Codex plugin does one thing: an **append-mode Stop hook**. Codex has no
+hook that can change displayed assistant text, so there is no `replace` mode
+and no on-demand skill or command; the Claude Code plugin is unaffected.
+
+**Install:** add the checkout to a repo or personal marketplace following the
+[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
+(`source.path` points to the checkout relative to the marketplace root), e.g.
+`codex plugin marketplace add /path/to/local-marketplace-root`, then install
+and enable it. The Codex manifest is `.codex-plugin/plugin.json`.
+
+**Codex append mode (Stop hook).** The Codex manifest points `hooks` at
+`hooks/codex-hooks.json` (so Claude's `hooks/hooks.json` is never loaded by
+Codex). It registers one `Stop` hook, `codex-stop.sh`, which mirrors the Claude
+Code `append` display mode as closely as Codex allows:
+
+- When a turn ends, the final assistant message (`last_assistant_message`) is
+  rewritten and returned as `{"systemMessage": "…"}`. Codex shows it as a
+  **second, warning-styled message** below the answer, with the same
+  `💬 In plain **language**:` label (or the style's label). The original
+  answer stays on screen and in history, and the rewrite never enters the
+  model's context.
+- There is no `replace` mode: Codex parses `suppressOutput` but does not
+  implement it, so `CLAUDISH_MODE` is ignored here and append is forced.
+- The rewrite reuses `rewrite.sh` unchanged, so the same settings apply:
+  `CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, `CLAUDISH_CODEX_EFFORT`,
+  `CLAUDISH_TIMEOUT`, `CLAUDISH_MIN_CHARS`, `CLAUDISH_LANG` (and the
+  `language` settings key), `CLAUDISH_STYLE`, `CLAUDISH_PROMPT_FILE`,
+  `CLAUDISH_NOTICE`, `CLAUDISH_DEBUG`, and the flag files from `/claudish`.
+  The hook's own `timeout` in `hooks/codex-hooks.json` is **620s** =
+  `CLAUDISH_TIMEOUT` (default 45; sized for users who set 600) + ~20s for startup and
+  the nested CLI. Keep `hook timeout ≥ CLAUDISH_TIMEOUT + 20`; if you go above
+  600, raise the hook timeout too. The rewrite's own timeout still fails open
+  first, so normal turns only wait as long as the rewrite takes.
+- It fails open. It prints `{}` (nothing shown, turn unaffected) when the
+  message is empty or too short, when `stop_hook_active` is true, or when the
+  rewrite fails, times out, or comes back empty or unchanged. It never
+  returns `decision: "block"`, so it can't start an extra turn.
+- With `CLAUDISH_PROVIDER=codex`, the rewrite runs a nested `codex exec`. That
+  call passes `--disable hooks`, and the hook also exits early when
+  `CLAUDISH_HOOK_DEPTH` is set, so the hook can't call itself recursively.
+- Each finished turn waits for the rewrite (a few seconds with a fast model,
+  e.g. `CLAUDISH_CODEX_EFFORT=low`).
+
+Codex does **not** run plugin hooks until you trust them. After installing,
+open `/hooks` in the Codex CLI, review the `claudish-to-english` Stop hook and
+trust it (re-trust after updating the plugin, because trust is tied to the hook's
+hash). To turn it off, disable that hook in `/hooks`, set
+`CLAUDISH_ENABLED=0` before launching Codex, or create the off-file
+(`~/.claude/claudish-off`, or `CLAUDISH_OFF_FILE`) to pause it mid-session.
+For scripted runs, `codex exec --dangerously-bypass-hook-trust` runs it without
+persisted trust.
+
+The same `bash`, `jq`, `curl`, and [provider setup](#providers) apply. Export
+`CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, and any provider key or endpoint in the
+shell **before launching Codex**, so the hook inherits them. The Codex manifest
+loads only `hooks/codex-hooks.json`, so Claude's `hooks/hooks.json` and
+`/claudish` command are not picked up.
 
 ---
 
@@ -602,6 +665,7 @@ ollama, nothing leaves your machine.
 |---|---|---|---|
 | `ollama` (default) | `CLAUDISH_OLLAMA` (`http://localhost:11434`) | none | `gemma4:26b-mlx` |
 | `codex` | OpenAI codex CLI (`codex exec`) — uses the CLI's own login | none | *(CLI default)* |
+| `agy` | Google Antigravity CLI (`agy -p`) — uses the CLI's own login | none | *(CLI default)* |
 | `anthropic` | `CLAUDISH_ANTHROPIC_URL` (`https://api.anthropic.com`) + `/v1/messages` | `CLAUDISH_ANTHROPIC_KEY` or `ANTHROPIC_API_KEY` | `claude-haiku-4-5` |
 | `openai` | `CLAUDISH_OPENAI_URL` + `/chat/completions` | `CLAUDISH_OPENAI_KEY` or `OPENAI_API_KEY` | `gpt-5.6-luna` |
 
@@ -614,6 +678,24 @@ the CLI's configured model; unset uses the CLI default. `CLAUDISH_CODEX_EFFORT`
 overrides the CLI's reasoning effort for the rewrite only (e.g. `low` keeps a
 per-message rewrite fast even when the CLI's coding default is a high-effort
 tier). Requires `codex` on PATH; fails open like every other provider.
+
+### agy (Google Antigravity)
+
+`CLAUDISH_PROVIDER=agy` runs the rewrite through the Google Antigravity CLI in
+headless mode (`agy -p`), using the credentials cached by an interactive `agy`
+login. No API key and no local model server. Run `agy` once interactively to
+sign in first: an unauthenticated headless run fails with "authentication
+required", and the session notice tells you so.
+
+- `CLAUDISH_MODEL` picks the model slug (list them with `agy models`, e.g.
+  `gemini-3.8-flash-medium`); unset uses the CLI default.
+- `CLAUDISH_AGY_EFFORT` passes `--effort low|medium|high`; unset uses the CLI
+  default. `low` keeps per-message rewrites fast.
+- `CLAUDISH_AGY_WORKDIR` is the directory `agy` runs in (default
+  `${TMPDIR:-/tmp}/claudish-agy-ws`). It is a scratch directory on purpose, so
+  the agent never runs inside your project.
+
+Requires `agy` on PATH; fails open like every other provider.
 
 > [!CAUTION]
 > The cloud providers pick their key up from the **ambient environment**
@@ -713,7 +795,7 @@ Notes:
 | `CLAUDISH_PROMPT_FILE` | *(unset)* | Path to a file whose contents replace the display hook's system prompt (whole prompt, not merged). Empty/unreadable falls back to the built-in default. See [Customizing the rewrite prompt](#customizing-the-rewrite-prompt). |
 | `CLAUDISH_LANG` | *(unset)* | Language to rewrite into, e.g. `Esperanto`. Unset falls back to the `language` key in `.claude/settings*.json`; with neither set, the rewrite keeps the input's language. Empty ignores the settings key; `English` forces English. See [Output language](#output-language). |
 | `CLAUDISH_LANG_FILE` | `~/.claude/claudish-lang` | Runtime language override: a language name in this file wins over `CLAUDISH_LANG` and the settings key, re-checked every message. Written by `/claudish language <name>`. See [Controlling it live](#controlling-it-live-claudish). |
-| `CLAUDISH_PROVIDER` | `ollama` | `ollama`, `codex`, `anthropic`, or `openai` — which LLM serves rewrites (both hooks). |
+| `CLAUDISH_PROVIDER` | `ollama` | `ollama`, `codex`, `agy`, `anthropic`, or `openai` — which LLM serves rewrites (both hooks). |
 | `CLAUDISH_MODEL` | *(per provider)* | Model name; overrides the provider default (see [Providers](#providers)). The ollama default `gemma4:26b-mlx` is MLX (Apple-silicon only; Windows users must override). |
 | `CLAUDISH_MODEL_FILE` | `~/.claude/claudish-model` | Runtime model override: a model name in this file wins over `CLAUDISH_MODEL`, re-checked every message (applies to whatever provider is configured). Written by `/claudish model <name>`. See [Controlling it live](#controlling-it-live-claudish). |
 | `CLAUDISH_OLLAMA` | `http://localhost:11434` | ollama base URL. |
@@ -723,6 +805,8 @@ Notes:
 | `CLAUDISH_ANTHROPIC_URL` | `https://api.anthropic.com` | Base URL for the anthropic provider — override for proxies/gateways that speak the Messages API. |
 | `CLAUDISH_OPENAI_EFFORT` | `none` on api.openai.com, else *(unset)* | `reasoning_effort` sent with openai-provider requests. Set explicitly empty to omit the field. |
 | `CLAUDISH_CODEX_EFFORT` | *(unset)* | `model_reasoning_effort` for the codex provider (e.g. `low`). Unset uses the codex CLI's configured effort. Applies to the rewrite only. |
+| `CLAUDISH_AGY_EFFORT` | *(unset)* | `--effort` (`low`/`medium`/`high`) for the agy provider. Unset uses the Antigravity CLI default. |
+| `CLAUDISH_AGY_WORKDIR` | `${TMPDIR:-/tmp}/claudish-agy-ws` | Scratch directory the agy provider runs `agy -p` in. |
 | `CLAUDISH_MAX_TOKENS` | `4096` | Completion cap for the anthropic provider. Rewrites that hit the cap are discarded (fail-open), with a notice to raise it. |
 | `CLAUDISH_MIN_CHARS` | `200` | Skip messages/files whose prose (code stripped) is shorter than this. Counted in **characters**, so one threshold means the same length in every script. |
 | `CLAUDISH_STUB` | `0` | `1` = deterministic stub instead of the model (for testing display mechanics). |
@@ -796,21 +880,25 @@ local unless you understand and accept it.
 ```
 claudish-to-english/
 ├── .claude-plugin/
-│   ├── plugin.json         # plugin manifest
+│   ├── plugin.json         # Claude Code manifest
 │   └── marketplace.json    # so the repo can be added as a marketplace directly
+├── .codex-plugin/
+│   └── plugin.json         # Codex packaging: hooks/codex-hooks.json only (append mode)
 ├── commands/
 │   └── claudish.md         # /claudish slash command (runtime on/off, mode, language, model, last, file)
 ├── hooks/
-│   └── hooks.json          # SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
-├── antigravity-plugin/      # Antigravity plugin (prototype): plugin.json, hooks.json, symlinks to the scripts
-├── agy-stop.sh             # Antigravity Stop hook: append mode via a verbatim echo pass
+│   ├── hooks.json          # Claude Code: SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
+│   └── codex-hooks.json    # Codex: Stop -> codex-stop.sh
 ├── rewrite.sh              # display-rewrite hook
+├── codex-stop.sh           # Codex Stop hook: append-mode rewrite as a systemMessage (drives rewrite.sh)
+├── antigravity-plugin/     # Antigravity plugin: plugin.json, hooks.json, symlinks to the scripts
+├── agy-stop.sh             # Antigravity Stop hook: append mode via a verbatim echo pass
 ├── rewrite-md.sh           # markdown-file rewrite hook (opt-in)
 ├── claudish-md.sh          # on-demand rewrite of a file or stdin (CLI; backs /claudish file)
 ├── md-core.sh              # Markdown frontmatter split + prompt, shared by rewrite-md.sh and claudish-md.sh
 ├── claudish-ctl.sh         # runtime state switcher + dashboard backing /claudish (writes the flag files)
 ├── session-notice.sh       # SessionStart hook: announces leftover /claudish overrides on a new session
-├── providers.sh            # provider layer (ollama/anthropic/openai), sourced by both hooks
+├── providers.sh            # provider layer (ollama/codex/agy/anthropic/openai), sourced by both hooks
 ├── lang.sh                 # output-language resolver (env + .claude/settings*.json), sourced by both hooks
 ├── CHANGELOG.md            # notable changes per version (Keep a Changelog)
 ├── LICENSE
