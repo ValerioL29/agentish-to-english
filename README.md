@@ -164,6 +164,74 @@ Run `/reload-plugins` after edits; if it doesn't load, check the `/plugin`
 
 ---
 
+## Antigravity CLI (prototype, append mode only)
+
+> **Prototype.** Tested on the Antigravity CLI (`agy`) only, on Linux, in
+> October 2026. Not tested in the Antigravity App or IDE.
+
+Antigravity has no hook that can display text or replace the reply, so the
+Antigravity plugin works around it with the `Stop` hook (`agy-stop.sh`):
+
+1. When a turn ends (`terminationReason` is `NO_TOOL_CALL` or `model_stop`,
+   `fullyIdle` is true, no `error`), the hook reads the last assistant step
+   from `transcriptPath` and rewrites it through `rewrite.sh`. All the usual
+   settings apply (`CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, `CLAUDISH_TIMEOUT`,
+   `CLAUDISH_MIN_CHARS`, `CLAUDISH_LANG`, `CLAUDISH_STYLE`, …).
+2. It returns `{"decision":"continue","reason":"…"}`. The reason holds the
+   finished rewrite, with the rule line and the `💬 In plain **language**:` label, and tells the
+   agent to output it verbatim and call no tools. Antigravity adds it as a
+   system message and runs **one extra model turn**, the "echo pass". The
+   plain version appears as a second reply below the original.
+3. Before it returns, the hook writes a marker,
+   `$TMPDIR/claudish-to-english-agy/<conversationId>.echo`
+   (`CLAUDISH_AGY_STATE` overrides the directory). The `Stop` after the echo
+   pass finds the marker, deletes it, and lets the turn end, so it can't loop.
+   A marker older than 15 minutes is ignored.
+
+It fails open. On any skip or error it prints `{}`, and the turn ends
+normally. `CLAUDISH_HOOK_DEPTH` is exported for the rewrite, so a nested
+`agy -p` rewrite (from the agy provider, if you use it) exits the hook right
+away.
+
+**Install:**
+
+```bash
+agy plugin install /path/to/claudish-to-english/antigravity-plugin
+```
+
+This copies the plugin, with its symlinked scripts dereferenced, to
+`~/.gemini/config/plugins/claudish-to-english/`. Run
+`agy plugin uninstall claudish-to-english` to remove it, and reinstall after
+you update the checkout. Plugin hooks run with the plugin directory as their
+working directory. For a single workspace, you can instead point
+`.agents/hooks.json` at the checkout:
+
+```json
+{"claudish-append": {"Stop": [{"type": "command",
+  "command": "bash /path/to/claudish-to-english/agy-stop.sh", "timeout": 620}]}}
+```
+
+The 620s timeout is `CLAUDISH_TIMEOUT` (sized for 600) plus 20s. Export the
+`CLAUDISH_*` variables before you launch `agy`.
+
+**Caveats:**
+
+- The echo is the model's own output. In tests it was byte-identical, but
+  nothing guarantees that.
+- Each turn costs one extra model call. The echoed text also stays in the
+  conversation context.
+- Each turn takes longer: the rewrite (about 6s with codex at medium effort)
+  plus the echo pass (about 5s).
+- The agent sees the rewrite, unlike Claude Code's display-only rewrite.
+- The echo uses the same block as Claude Code's append mode: a
+  `────────────────────────` rule, the `💬 In plain **…**:` label, then the
+  rewrite. Under `agy -p` it is printed right after the original.
+- The hook payload differed from the docs in testing. `terminationReason` was
+  `NO_TOOL_CALL`, and `transcriptPath` pointed at `transcript_full.jsonl`. The
+  hook accepts both forms.
+
+---
+
 ## Codex CLI (append mode only)
 
 The Codex plugin does one thing: an **append-mode Stop hook**. Codex has no
@@ -823,6 +891,8 @@ claudish-to-english/
 │   └── codex-hooks.json    # Codex: Stop -> codex-stop.sh
 ├── rewrite.sh              # display-rewrite hook
 ├── codex-stop.sh           # Codex Stop hook: append-mode rewrite as a systemMessage (drives rewrite.sh)
+├── antigravity-plugin/     # Antigravity plugin: plugin.json, hooks.json, symlinks to the scripts
+├── agy-stop.sh             # Antigravity Stop hook: append mode via a verbatim echo pass
 ├── rewrite-md.sh           # markdown-file rewrite hook (opt-in)
 ├── claudish-md.sh          # on-demand rewrite of a file or stdin (CLI; backs /claudish file)
 ├── md-core.sh              # Markdown frontmatter split + prompt, shared by rewrite-md.sh and claudish-md.sh

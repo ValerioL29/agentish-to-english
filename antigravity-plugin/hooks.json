@@ -1,0 +1,11 @@
+{
+  "claudish-append": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "bash ./agy-stop.sh",
+        "timeout": 620
+      }
+    ]
+  }
+}

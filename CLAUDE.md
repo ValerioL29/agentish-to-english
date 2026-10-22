@@ -23,6 +23,7 @@ the two ever disagree.
 | `lang.sh` | output-language resolver + the sanitiser for untrusted config values. Sourced by both hooks and the CLI |
 | `commands/claudish.md` | the `/claudish` slash command |
 | `hooks/hooks.json` | wires the three hooks |
+| `agy-stop.sh` + `antigravity-plugin/` | Antigravity Stop hook prototype (append mode via a verbatim echo pass); plugin dir symlinks the scripts |
 | `codex-stop.sh` | Codex Stop hook, append mode only; drives `rewrite.sh` and returns `systemMessage` or `{}` |
 | `hooks/codex-hooks.json` + `.codex-plugin/plugin.json` | Codex packaging; loads only the Stop hook (timeout 620 = CLAUDISH_TIMEOUT 600 + 20) |
 

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Antigravity CLI plugin prototype, append mode only (`antigravity-plugin/`,
+  `agy-stop.sh`).** Antigravity has no hook that can display or replace text.
+  The plugin's Stop hook rewrites the final answer through `rewrite.sh` and
+  returns `decision: "continue"` with the rewrite embedded. The agent then
+  echoes the rewrite verbatim in one extra turn. A per-conversation marker file
+  stops the second Stop from looping, `CLAUDISH_HOOK_DEPTH` stops nested
+  rewrites from re-entering the hook, and every error fails open to `{}`. The echo keeps the Claude Code append block
+  (rule line, label, rewrite). The marker lives in
+  `$TMPDIR/claudish-to-english-agy`, outside `rewrite.sh`'s buffer root, because
+  `rewrite.sh` sweeps old empty folders there and could delete it mid-hook.
 - **Codex CLI plugin, append mode only (`.codex-plugin/`, `codex-stop.sh`).** When a Codex turn ends, the
   final answer is rewritten through `rewrite.sh` and shown as a `systemMessage`
   below the original (Codex has no replace mode). It prints `{}` when skipped or
