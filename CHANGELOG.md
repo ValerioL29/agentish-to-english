@@ -8,18 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Codex append-mode Stop hook (`codex-stop.sh`).** When a Codex turn ends, the
+- **Codex CLI plugin, append mode only (`.codex-plugin/`, `codex-stop.sh`).** When a Codex turn ends, the
   final answer is rewritten through `rewrite.sh` and shown as a `systemMessage`
   below the original (Codex has no replace mode). It prints `{}` when skipped or
   failed, and runs only after you trust it in `/hooks`. The nested `codex exec` of the codex
-  provider now passes `--disable hooks`.
-- **Codex CLI and Grok Build plugin packaging for on-demand rewrites.** Neither
-  host has a hook that can change displayed assistant text, so a shared
-  `claudish-rewrite` skill and a Grok file/URL command call the existing
-  `claudish-md.sh` only when asked. The manifests explicitly disable plugin
-  hooks, and Grok overrides command discovery, so installing the repository
-  cannot accidentally load Claude-specific hooks or controls. Claude Code's
-  existing display and Markdown hooks are unchanged.
+  provider now passes `--disable hooks`. The hook timeout is 620s so it
+  covers `CLAUDISH_TIMEOUT` up to 600s plus ~20s overhead. No skills or
+  commands are shipped for Codex, and Claude Code's hooks are unchanged.
 
 ## [0.10.0] - 2026-10-09
 

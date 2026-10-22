@@ -203,16 +203,6 @@ and both the hook and the CLI follow. The two callers differ only in failure
 policy. The hook passes through silently; the CLI refuses to run without all
 three libraries and reports every failure.
 
-### Keep host packaging isolated
-
-Codex CLI and Grok Build have no hook that can rewrite displayed assistant
-text, so they expose only on-demand rewrites. Their manifests explicitly set
-`hooks` to an empty hook map: omitting that field would load the Claude-only
-`hooks/hooks.json` by convention. Grok also points `commands` at
-`grok-commands/` so it cannot pick up Claude's `/claudish` controls. Keep the
-shared skill's explicit-request gates too, because it can fetch URLs, send
-file contents to the configured provider, and write sibling files.
-
 ---
 
 ## Opening a pull request
@@ -239,13 +229,10 @@ Versioning is [SemVer](https://semver.org) at `0.x`:
   env var. (0.6.0 codex provider, 0.7.0 oauth mode, 0.8.0 caveman preset.)
 - **PATCH** for fixes only, nothing new. (0.7.1.)
 
-The three host manifests (`.claude-plugin/plugin.json`,
-`.codex-plugin/plugin.json`, and `.grok-plugin/plugin.json`) and `CHANGELOG.md`
-carry a version. Keep the manifests in sync when cutting a release;
-contributors leave existing versions alone. `marketplace.json` does not pin one.
+Only two files carry a version: `.claude-plugin/plugin.json` and
+`CHANGELOG.md`. `marketplace.json` does not pin one.
 
-With Claude Code, `/release <version>` updates the changelog and Claude
-manifest; also sync the Codex and Grok manifests to that version. By hand:
+With Claude Code, run `/release <version>` and it does all of this. By hand:
 
 ```bash
 # 1. branch
@@ -257,8 +244,7 @@ git switch -c release/0.9.0 origin/main
 #    [Unreleased]: https://github.com/gvzdv/claudish-to-english/compare/v0.9.0...HEAD
 #    [0.9.0]:      https://github.com/gvzdv/claudish-to-english/compare/v0.8.0...v0.9.0
 
-# 4. .claude-plugin/plugin.json, .codex-plugin/plugin.json, .grok-plugin/plugin.json:
-#    bump "version" together
+# 4. .claude-plugin/plugin.json: bump "version"
 
 # 5. commit, push, PR, review, merge
 git commit -am "chore: v0.9.0 — <one-line summary>"
@@ -283,8 +269,7 @@ Two details that are easy to get wrong:
 Sanity check before merging a release PR:
 
 ```bash
-jq -r .version .claude-plugin/plugin.json \
-  .codex-plugin/plugin.json .grok-plugin/plugin.json # all match the new heading
+jq -r .version .claude-plugin/plugin.json      # matches the new heading
 grep -c '^## \[' CHANGELOG.md                  # one more than last release
 for f in *.sh; do bash -n "$f" || echo FAIL; done
 ```

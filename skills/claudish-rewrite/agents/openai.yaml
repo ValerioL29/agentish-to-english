@@ -1,5 +1,0 @@
-# A rewrite can fetch a URL, send document text to a provider, and write a
-# sibling file. Keep Codex invocation explicit, matching the shared skill's
-# Grok/Claude frontmatter; the hosts use different invocation-policy formats.
-policy:
-  allow_implicit_invocation: false

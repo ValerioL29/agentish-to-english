@@ -23,10 +23,8 @@ the two ever disagree.
 | `lang.sh` | output-language resolver + the sanitiser for untrusted config values. Sourced by both hooks and the CLI |
 | `commands/claudish.md` | the `/claudish` slash command |
 | `hooks/hooks.json` | wires the three hooks |
-| `.codex-plugin/plugin.json` | Codex packaging; explicitly disables Claude hooks |
-| `.grok-plugin/plugin.json` | Grok packaging; overrides Claude hooks and commands |
-| `skills/claudish-rewrite/` | shared on-demand skill; explicit requests only, enforced in Codex by `agents/openai.yaml` |
-| `grok-commands/claudish-file.md` | Grok on-demand file/URL rewrite command |
+| `codex-stop.sh` | Codex Stop hook, append mode only; drives `rewrite.sh` and returns `systemMessage` or `{}` |
+| `hooks/codex-hooks.json` + `.codex-plugin/plugin.json` | Codex packaging; loads only the Stop hook (timeout 620 = CLAUDISH_TIMEOUT 600 + 20) |
 
 Config precedence is consistent throughout: **flag file > env var > settings
 file > built-in default**. Flag files exist because env vars are frozen at
@@ -111,11 +109,6 @@ prompt or the screen. Never print a raw config value.
 header comment in each script is its real documentation. Match that density and
 update the header when behaviour changes.
 
-**Host packaging must stay isolated.** Codex and Grok have no display-rewrite
-hook. Their manifests explicitly override `hooks` with an empty hook map, and
-Grok overrides `commands` with `grok-commands/`, because convention would load
-the Claude files. Keep those overrides and the skill's explicit-request gates.
-
 ## Changelog and releases
 
 Contributors add an entry under `## [Unreleased]` in `CHANGELOG.md` and **never**
@@ -125,8 +118,7 @@ When making a change, add the `CHANGELOG.md` entry as part of the work — not a
 a follow-up. Use `### Added` / `### Changed` / `### Fixed`, and say *why*, not
 just what.
 
-To cut a release, use the `/release` skill in `.claude/skills/release/` for the
-changelog and Claude manifest, and also sync the Codex and Grok manifest
-versions. SemVer at `0.x`: MINOR for a new user-facing feature, PATCH for fixes
-only. The three host manifests and `CHANGELOG.md` carry a version. The tag goes
-on the **merge** commit, never the bump commit.
+To cut a release, use the `/release` skill in `.claude/skills/release/`. SemVer
+at `0.x`: MINOR for a new user-facing feature, PATCH for fixes only. Only
+`plugin.json` and `CHANGELOG.md` carry a version. The tag goes on the **merge**
+commit, never the bump commit.

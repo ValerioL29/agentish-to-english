@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/codex-stop.sh\"",
-            "timeout": 60,
+            "timeout": 620,
             "statusMessage": "claudish: rewriting in plain language"
           }
         ]

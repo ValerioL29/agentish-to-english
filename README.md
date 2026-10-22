@@ -163,30 +163,17 @@ Run `/reload-plugins` after edits; if it doesn't load, check the `/plugin`
 
 ---
 
-## Codex CLI and Grok Build
+## Codex CLI (append mode only)
 
-Both hosts can use the shared `claudish-rewrite` skill to rewrite a file, URL,
-or pasted text when you explicitly ask. Files and URLs produce `NAME.plain.md`
-and a one-line reply naming it; pasted text is rewritten in the reply. Ask for
-an output language, or use `-l LANGUAGE` with the script. Neither host has a
+The Codex plugin does one thing: an **append-mode Stop hook**. Codex has no
 hook that can change displayed assistant text, so there is no `replace` mode
-outside Claude Code. Codex gets an **append-mode Stop hook** (below); Grok
-Build has no automatic per-message rewrite.
+and no on-demand skill or command; the Claude Code plugin is unaffected.
 
-**Codex CLI:** install the checkout from its repo path using the
-[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually).
-Add it to a repo or personal marketplace, with the catalog entry's
-`source.path` pointing to the checkout relative to the marketplace root. You
-can register that marketplace with:
-
-```bash
-codex plugin marketplace add /path/to/local-marketplace-root
-```
-
-That command registers a marketplace catalog; follow the linked instructions
-to install and enable the plugin. The Codex manifest is
-`.codex-plugin/plugin.json`. Invoke the skill explicitly, for example:
-`$claudish-rewrite rewrite notes.md in plain language`.
+**Install:** add the checkout to a repo or personal marketplace following the
+[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
+(`source.path` points to the checkout relative to the marketplace root), e.g.
+`codex plugin marketplace add /path/to/local-marketplace-root`, then install
+and enable it. The Codex manifest is `.codex-plugin/plugin.json`.
 
 **Codex append mode (Stop hook).** The Codex manifest points `hooks` at
 `hooks/codex-hooks.json` (so Claude's `hooks/hooks.json` is never loaded by
@@ -206,9 +193,11 @@ Code `append` display mode as closely as Codex allows:
   `CLAUDISH_TIMEOUT`, `CLAUDISH_MIN_CHARS`, `CLAUDISH_LANG` (and the
   `language` settings key), `CLAUDISH_STYLE`, `CLAUDISH_PROMPT_FILE`,
   `CLAUDISH_NOTICE`, `CLAUDISH_DEBUG`, and the flag files from `/claudish`.
-  The hook's own timeout is 60s, above the 45s default `CLAUDISH_TIMEOUT`;
-  if you raise `CLAUDISH_TIMEOUT` past ~55s, raise `timeout` in
-  `hooks/codex-hooks.json` too.
+  The hook's own `timeout` in `hooks/codex-hooks.json` is **620s** =
+  `CLAUDISH_TIMEOUT` (default 45; sized for users who set 600) + ~20s for startup and
+  the nested CLI. Keep `hook timeout ≥ CLAUDISH_TIMEOUT + 20`; if you go above
+  600, raise the hook timeout too. The rewrite's own timeout still fails open
+  first, so normal turns only wait as long as the rewrite takes.
 - It fails open. It prints `{}` (nothing shown, turn unaffected) when the
   message is empty or too short, when `stop_hook_active` is true, or when the
   rewrite fails, times out, or comes back empty or unchanged. It never
@@ -228,32 +217,11 @@ hash). To turn it off, disable that hook in `/hooks`, set
 For scripted runs, `codex exec --dangerously-bypass-hook-trust` runs it without
 persisted trust.
 
-**Grok Build:** install from the repository URL or a local checkout:
-
-```bash
-grok plugin install https://github.com/gvzdv/claudish-to-english --trust
-```
-
-Or try the checkout for one session:
-
-```bash
-grok --plugin-dir /path/to/claudish-to-english
-```
-
-Use `/claudish-file <path or URL>` for a sibling file (or
-`/claudish-to-english:claudish-file` on a name collision), or ask for the shared
-skill. See the
-[Grok plugin docs](https://docs.x.ai/build/features/skills-plugins-marketplaces).
-The Grok manifest is `.grok-plugin/plugin.json`.
-
 The same `bash`, `jq`, `curl`, and [provider setup](#providers) apply. Export
 `CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, and any provider key or endpoint in the
-shell **before launching Codex or Grok**, so script calls inherit them. The
-script also honours existing language and model flag-file overrides from
-`/claudish`. The Codex manifest loads only `hooks/codex-hooks.json`, the
-Grok manifest explicitly disables plugin hooks, and Grok loads
-`grok-commands/`, so the Claude hook and command files are not picked up by
-convention.
+shell **before launching Codex**, so the hook inherits them. The Codex manifest
+loads only `hooks/codex-hooks.json`, so Claude's `hooks/hooks.json` and
+`/claudish` command are not picked up.
 
 ---
 
@@ -825,17 +793,9 @@ claudish-to-english/
 │   ├── plugin.json         # Claude Code manifest
 │   └── marketplace.json    # so the repo can be added as a marketplace directly
 ├── .codex-plugin/
-│   └── plugin.json         # Codex packaging: skill + hooks/codex-hooks.json (not Claude's hooks.json)
-├── .grok-plugin/
-│   └── plugin.json         # Grok skill packaging; overrides Claude hooks and commands
+│   └── plugin.json         # Codex packaging: hooks/codex-hooks.json only (append mode)
 ├── commands/
 │   └── claudish.md         # /claudish slash command (runtime on/off, mode, language, model, last, file)
-├── grok-commands/
-│   └── claudish-file.md    # Grok on-demand file/URL rewrite command
-├── skills/
-│   └── claudish-rewrite/
-│       ├── SKILL.md        # shared on-demand rewrite instructions; explicit requests only
-│       └── agents/openai.yaml # disables implicit skill invocation in Codex
 ├── hooks/
 │   ├── hooks.json          # Claude Code: SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
 │   └── codex-hooks.json    # Codex: Stop -> codex-stop.sh
