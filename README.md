@@ -9,6 +9,7 @@
 
 A Claude Code plugin that shows a **plain-English rewrite** of each assistant
 message, produced by a **local LLM via ollama** (default), the **codex CLI**,
+the **Google Antigravity CLI**,
 the **Anthropic API**, or any **OpenAI-compatible API**. It is **display-only**:
 Claude's own reasoning and the saved transcript keep the original text — only
 what you read on screen changes.
@@ -534,6 +535,7 @@ ollama, nothing leaves your machine.
 |---|---|---|---|
 | `ollama` (default) | `CLAUDISH_OLLAMA` (`http://localhost:11434`) | none | `gemma4:26b-mlx` |
 | `codex` | OpenAI codex CLI (`codex exec`) — uses the CLI's own login | none | *(CLI default)* |
+| `agy` | Google Antigravity CLI (`agy -p`) — uses the CLI's own login | none | *(CLI default)* |
 | `anthropic` | `CLAUDISH_ANTHROPIC_URL` (`https://api.anthropic.com`) + `/v1/messages` | `CLAUDISH_ANTHROPIC_KEY` or `ANTHROPIC_API_KEY` | `claude-haiku-4-5` |
 | `openai` | `CLAUDISH_OPENAI_URL` + `/chat/completions` | `CLAUDISH_OPENAI_KEY` or `OPENAI_API_KEY` | `gpt-5.6-luna` |
 
@@ -546,6 +548,24 @@ the CLI's configured model; unset uses the CLI default. `CLAUDISH_CODEX_EFFORT`
 overrides the CLI's reasoning effort for the rewrite only (e.g. `low` keeps a
 per-message rewrite fast even when the CLI's coding default is a high-effort
 tier). Requires `codex` on PATH; fails open like every other provider.
+
+### agy (Google Antigravity)
+
+`CLAUDISH_PROVIDER=agy` runs the rewrite through the Google Antigravity CLI in
+headless mode (`agy -p`), using the credentials cached by an interactive `agy`
+login. No API key and no local model server. Run `agy` once interactively to
+sign in first: an unauthenticated headless run fails with "authentication
+required", and the session notice tells you so.
+
+- `CLAUDISH_MODEL` picks the model slug (list them with `agy models`, e.g.
+  `gemini-3.8-flash-medium`); unset uses the CLI default.
+- `CLAUDISH_AGY_EFFORT` passes `--effort low|medium|high`; unset uses the CLI
+  default. `low` keeps per-message rewrites fast.
+- `CLAUDISH_AGY_WORKDIR` is the directory `agy` runs in (default
+  `${TMPDIR:-/tmp}/claudish-agy-ws`). It is a scratch directory on purpose, so
+  the agent never runs inside your project.
+
+Requires `agy` on PATH; fails open like every other provider.
 
 > [!CAUTION]
 > The cloud providers pick their key up from the **ambient environment**
@@ -645,7 +665,7 @@ Notes:
 | `CLAUDISH_PROMPT_FILE` | *(unset)* | Path to a file whose contents replace the display hook's system prompt (whole prompt, not merged). Empty/unreadable falls back to the built-in default. See [Customizing the rewrite prompt](#customizing-the-rewrite-prompt). |
 | `CLAUDISH_LANG` | *(unset)* | Language to rewrite into, e.g. `Esperanto`. Unset falls back to the `language` key in `.claude/settings*.json`; with neither set, the rewrite keeps the input's language. Empty ignores the settings key; `English` forces English. See [Output language](#output-language). |
 | `CLAUDISH_LANG_FILE` | `~/.claude/claudish-lang` | Runtime language override: a language name in this file wins over `CLAUDISH_LANG` and the settings key, re-checked every message. Written by `/claudish language <name>`. See [Controlling it live](#controlling-it-live-claudish). |
-| `CLAUDISH_PROVIDER` | `ollama` | `ollama`, `codex`, `anthropic`, or `openai` — which LLM serves rewrites (both hooks). |
+| `CLAUDISH_PROVIDER` | `ollama` | `ollama`, `codex`, `agy`, `anthropic`, or `openai` — which LLM serves rewrites (both hooks). |
 | `CLAUDISH_MODEL` | *(per provider)* | Model name; overrides the provider default (see [Providers](#providers)). The ollama default `gemma4:26b-mlx` is MLX (Apple-silicon only; Windows users must override). |
 | `CLAUDISH_MODEL_FILE` | `~/.claude/claudish-model` | Runtime model override: a model name in this file wins over `CLAUDISH_MODEL`, re-checked every message (applies to whatever provider is configured). Written by `/claudish model <name>`. See [Controlling it live](#controlling-it-live-claudish). |
 | `CLAUDISH_OLLAMA` | `http://localhost:11434` | ollama base URL. |
@@ -655,6 +675,8 @@ Notes:
 | `CLAUDISH_ANTHROPIC_URL` | `https://api.anthropic.com` | Base URL for the anthropic provider — override for proxies/gateways that speak the Messages API. |
 | `CLAUDISH_OPENAI_EFFORT` | `none` on api.openai.com, else *(unset)* | `reasoning_effort` sent with openai-provider requests. Set explicitly empty to omit the field. |
 | `CLAUDISH_CODEX_EFFORT` | *(unset)* | `model_reasoning_effort` for the codex provider (e.g. `low`). Unset uses the codex CLI's configured effort. Applies to the rewrite only. |
+| `CLAUDISH_AGY_EFFORT` | *(unset)* | `--effort` (`low`/`medium`/`high`) for the agy provider. Unset uses the Antigravity CLI default. |
+| `CLAUDISH_AGY_WORKDIR` | `${TMPDIR:-/tmp}/claudish-agy-ws` | Scratch directory the agy provider runs `agy -p` in. |
 | `CLAUDISH_MAX_TOKENS` | `4096` | Completion cap for the anthropic provider. Rewrites that hit the cap are discarded (fail-open), with a notice to raise it. |
 | `CLAUDISH_MIN_CHARS` | `200` | Skip messages/files whose prose (code stripped) is shorter than this. Counted in **characters**, so one threshold means the same length in every script. |
 | `CLAUDISH_STUB` | `0` | `1` = deterministic stub instead of the model (for testing display mechanics). |
@@ -740,7 +762,7 @@ claudish-to-english/
 ├── md-core.sh              # Markdown frontmatter split + prompt, shared by rewrite-md.sh and claudish-md.sh
 ├── claudish-ctl.sh         # runtime state switcher + dashboard backing /claudish (writes the flag files)
 ├── session-notice.sh       # SessionStart hook: announces leftover /claudish overrides on a new session
-├── providers.sh            # provider layer (ollama/anthropic/openai), sourced by both hooks
+├── providers.sh            # provider layer (ollama/codex/agy/anthropic/openai), sourced by both hooks
 ├── lang.sh                 # output-language resolver (env + .claude/settings*.json), sourced by both hooks
 ├── CHANGELOG.md            # notable changes per version (Keep a Changelog)
 ├── LICENSE

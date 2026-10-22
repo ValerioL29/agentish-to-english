@@ -167,7 +167,7 @@ case "$src" in
 esac
 if [ "$is_url" = "1" ]; then
   command -v curl >/dev/null 2>&1 || die "curl is required to fetch a URL"
-elif [ "$PROVIDER" != "codex" ]; then
+elif [ "$PROVIDER" != "codex" ] && [ "$PROVIDER" != "agy" ]; then
   command -v curl >/dev/null 2>&1 || die "curl is required for the $PROVIDER provider"
 fi
 
