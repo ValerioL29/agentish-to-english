@@ -164,6 +164,68 @@ Run `/reload-plugins` after edits; if it doesn't load, check the `/plugin`
 
 ---
 
+## Codex CLI (append mode only)
+
+The Codex plugin does one thing: an **append-mode Stop hook**. Codex has no
+hook that can change displayed assistant text, so there is no `replace` mode
+and no on-demand skill or command; the Claude Code plugin is unaffected.
+
+**Install:** add the checkout to a repo or personal marketplace following the
+[Codex local-plugin instructions](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually)
+(`source.path` points to the checkout relative to the marketplace root), e.g.
+`codex plugin marketplace add /path/to/local-marketplace-root`, then install
+and enable it. The Codex manifest is `.codex-plugin/plugin.json`.
+
+**Codex append mode (Stop hook).** The Codex manifest points `hooks` at
+`hooks/codex-hooks.json` (so Claude's `hooks/hooks.json` is never loaded by
+Codex). It registers one `Stop` hook, `codex-stop.sh`, which mirrors the Claude
+Code `append` display mode as closely as Codex allows:
+
+- When a turn ends, the final assistant message (`last_assistant_message`) is
+  rewritten and returned as `{"systemMessage": "…"}`. Codex shows it as a
+  **second, warning-styled message** below the answer, with the same
+  `💬 In plain **language**:` label (or the style's label). The original
+  answer stays on screen and in history, and the rewrite never enters the
+  model's context.
+- There is no `replace` mode: Codex parses `suppressOutput` but does not
+  implement it, so `CLAUDISH_MODE` is ignored here and append is forced.
+- The rewrite reuses `rewrite.sh` unchanged, so the same settings apply:
+  `CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, `CLAUDISH_CODEX_EFFORT`,
+  `CLAUDISH_TIMEOUT`, `CLAUDISH_MIN_CHARS`, `CLAUDISH_LANG` (and the
+  `language` settings key), `CLAUDISH_STYLE`, `CLAUDISH_PROMPT_FILE`,
+  `CLAUDISH_NOTICE`, `CLAUDISH_DEBUG`, and the flag files from `/claudish`.
+  The hook's own `timeout` in `hooks/codex-hooks.json` is **620s** =
+  `CLAUDISH_TIMEOUT` (default 45; sized for users who set 600) + ~20s for startup and
+  the nested CLI. Keep `hook timeout ≥ CLAUDISH_TIMEOUT + 20`; if you go above
+  600, raise the hook timeout too. The rewrite's own timeout still fails open
+  first, so normal turns only wait as long as the rewrite takes.
+- It fails open. It prints `{}` (nothing shown, turn unaffected) when the
+  message is empty or too short, when `stop_hook_active` is true, or when the
+  rewrite fails, times out, or comes back empty or unchanged. It never
+  returns `decision: "block"`, so it can't start an extra turn.
+- With `CLAUDISH_PROVIDER=codex`, the rewrite runs a nested `codex exec`. That
+  call passes `--disable hooks`, and the hook also exits early when
+  `CLAUDISH_HOOK_DEPTH` is set, so the hook can't call itself recursively.
+- Each finished turn waits for the rewrite (a few seconds with a fast model,
+  e.g. `CLAUDISH_CODEX_EFFORT=low`).
+
+Codex does **not** run plugin hooks until you trust them. After installing,
+open `/hooks` in the Codex CLI, review the `claudish-to-english` Stop hook and
+trust it (re-trust after updating the plugin, because trust is tied to the hook's
+hash). To turn it off, disable that hook in `/hooks`, set
+`CLAUDISH_ENABLED=0` before launching Codex, or create the off-file
+(`~/.claude/claudish-off`, or `CLAUDISH_OFF_FILE`) to pause it mid-session.
+For scripted runs, `codex exec --dangerously-bypass-hook-trust` runs it without
+persisted trust.
+
+The same `bash`, `jq`, `curl`, and [provider setup](#providers) apply. Export
+`CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, and any provider key or endpoint in the
+shell **before launching Codex**, so the hook inherits them. The Codex manifest
+loads only `hooks/codex-hooks.json`, so Claude's `hooks/hooks.json` and
+`/claudish` command are not picked up.
+
+---
+
 ## Configuring the plugin
 
 There are two ways to control claudish, and they complement each other:
@@ -750,13 +812,17 @@ local unless you understand and accept it.
 ```
 claudish-to-english/
 ├── .claude-plugin/
-│   ├── plugin.json         # plugin manifest
+│   ├── plugin.json         # Claude Code manifest
 │   └── marketplace.json    # so the repo can be added as a marketplace directly
+├── .codex-plugin/
+│   └── plugin.json         # Codex packaging: hooks/codex-hooks.json only (append mode)
 ├── commands/
 │   └── claudish.md         # /claudish slash command (runtime on/off, mode, language, model, last, file)
 ├── hooks/
-│   └── hooks.json          # SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
+│   ├── hooks.json          # Claude Code: SessionStart -> session-notice.sh ; MessageDisplay -> rewrite.sh ; PostToolUse -> rewrite-md.sh
+│   └── codex-hooks.json    # Codex: Stop -> codex-stop.sh
 ├── rewrite.sh              # display-rewrite hook
+├── codex-stop.sh           # Codex Stop hook: append-mode rewrite as a systemMessage (drives rewrite.sh)
 ├── rewrite-md.sh           # markdown-file rewrite hook (opt-in)
 ├── claudish-md.sh          # on-demand rewrite of a file or stdin (CLI; backs /claudish file)
 ├── md-core.sh              # Markdown frontmatter split + prompt, shared by rewrite-md.sh and claudish-md.sh

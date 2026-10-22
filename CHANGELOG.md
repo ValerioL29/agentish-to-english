@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Codex CLI plugin, append mode only (`.codex-plugin/`, `codex-stop.sh`).** When a Codex turn ends, the
+  final answer is rewritten through `rewrite.sh` and shown as a `systemMessage`
+  below the original (Codex has no replace mode). It prints `{}` when skipped or
+  failed, and runs only after you trust it in `/hooks`. The nested `codex exec` of the codex
+  provider now passes `--disable hooks`. The hook timeout is 620s so it
+  covers `CLAUDISH_TIMEOUT` up to 600s plus ~20s overhead. No skills or
+  commands are shipped for Codex, and Claude Code's hooks are unchanged.
 - **`agy` provider (Google Antigravity CLI).** `CLAUDISH_PROVIDER=agy` rewrites
   through `agy -p` with the CLI's cached login, so people who already use
   Antigravity need no API key or local model server. `CLAUDISH_MODEL` picks the
