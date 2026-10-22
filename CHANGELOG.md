@@ -14,7 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returns `decision: "continue"` with the rewrite embedded. The agent then
   echoes the rewrite verbatim in one extra turn. A per-conversation marker file
   stops the second Stop from looping, `CLAUDISH_HOOK_DEPTH` stops nested
-  rewrites from re-entering the hook, and every error fails open to `{}`.
+  rewrites from re-entering the hook, and every error fails open to `{}`. The echo keeps the Claude Code append block
+  (rule line, label, rewrite). The marker lives in
+  `$TMPDIR/claudish-to-english-agy`, outside `rewrite.sh`'s buffer root, because
+  `rewrite.sh` sweeps old empty folders there and could delete it mid-hook.
 
 ## [0.10.0] - 2026-10-09
 

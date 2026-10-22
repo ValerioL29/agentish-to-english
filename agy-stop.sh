@@ -20,7 +20,8 @@
 # "source":"MODEL"} step with non-empty .content.
 #
 # Loop guard: before returning "continue", a marker
-# $STATE/<conversationId>.echo is written; the next Stop for that
+# $STATE/<conversationId>.echo is written (default STATE:
+# $TMPDIR/claudish-to-english-agy); the next Stop for that
 # conversation (the end of the echo pass) sees it, deletes it, and allows the
 # stop. Markers older than 15 min are treated as stale. Recursion guard:
 # CLAUDISH_HOOK_DEPTH is exported for the rewrite, so if the provider is a
@@ -45,7 +46,10 @@ get() { printf '%s' "$payload" | jq -r "$1" 2>/dev/null; }
 
 cid="$(get '.conversationId // empty' | tr -cd 'A-Za-z0-9_-')"
 [ -n "$cid" ] || allow
-STATE="${CLAUDISH_AGY_STATE:-${TMPDIR:-/tmp}/claudish-to-english/agy}"
+# Deliberately NOT under rewrite.sh's buffer root ($TMPDIR/claudish-to-english):
+# rewrite.sh sweeps empty subdirectories there that are older than 30 min, which
+# deleted this state dir mid-hook and made the marker write fail (no echo).
+STATE="${CLAUDISH_AGY_STATE:-${TMPDIR:-/tmp}/claudish-to-english-agy}"
 mkdir -p "$STATE" 2>/dev/null || allow
 marker="$STATE/$cid.echo"
 
@@ -81,10 +85,12 @@ chunk "$msg" 0 false | CLAUDISH_MODE=append CLAUDISH_MODE_FILE=/dev/null/none \
 res="$(chunk "" 1 true | CLAUDISH_MODE=append CLAUDISH_MODE_FILE=/dev/null/none \
   CLAUDISH_NOTICE="${CLAUDISH_NOTICE:-0}" bash "$SELF_DIR/rewrite.sh" 2>/dev/null)"
 dc="$(printf '%s' "$res" | jq -r '.hookSpecificOutput.displayContent // empty' 2>/dev/null)"
-# Keep "<label>\n\n<rewrite>": drop everything up to and including the rule.
+# Keep "<rule>\n<label>\n\n<rewrite>", same as the Claude Code append block:
+# drop only the blank lines before the rule.
 case "$dc" in *$'────────────────────────\n'*) ;; *) allow ;; esac
-out="${dc#*$'────────────────────────\n'}"
-body="${out#*$'\n'}"
+rest="${dc#*$'────────────────────────\n'}"
+out="────────────────────────"$'\n'"$rest"
+body="${rest#*$'\n'}"
 norm() { printf '%s' "$1" | tr -d '[:space:]'; }
 [ -n "$(norm "$body")" ] || allow
 [ "$(norm "$body")" = "$(norm "$msg")" ] && allow
@@ -93,6 +99,6 @@ instr="claudish-to-english (plain-language display hook): your previous reply is
 BEGIN-CLAUDISH
 $out
 END-CLAUDISH"
-: > "$marker" 2>/dev/null || allow
+mkdir -p "$STATE" 2>/dev/null; : > "$marker" 2>/dev/null || allow
 jq -nc --arg r "$instr" '{decision:"continue",reason:$r}' 2>/dev/null || { rm -f "$marker"; allow; }
 exit 0

@@ -177,12 +177,12 @@ Antigravity plugin works around it with the `Stop` hook (`agy-stop.sh`):
    settings apply (`CLAUDISH_PROVIDER`, `CLAUDISH_MODEL`, `CLAUDISH_TIMEOUT`,
    `CLAUDISH_MIN_CHARS`, `CLAUDISH_LANG`, `CLAUDISH_STYLE`, …).
 2. It returns `{"decision":"continue","reason":"…"}`. The reason holds the
-   finished rewrite, with the `💬 In plain **language**:` label, and tells the
+   finished rewrite, with the rule line and the `💬 In plain **language**:` label, and tells the
    agent to output it verbatim and call no tools. Antigravity adds it as a
    system message and runs **one extra model turn**, the "echo pass". The
    plain version appears as a second reply below the original.
 3. Before it returns, the hook writes a marker,
-   `$TMPDIR/claudish-to-english/agy/<conversationId>.echo`
+   `$TMPDIR/claudish-to-english-agy/<conversationId>.echo`
    (`CLAUDISH_AGY_STATE` overrides the directory). The `Stop` after the echo
    pass finds the marker, deletes it, and lets the turn end, so it can't loop.
    A marker older than 15 minutes is ignored.
@@ -222,8 +222,9 @@ The 620s timeout is `CLAUDISH_TIMEOUT` (sized for 600) plus 20s. Export the
 - Each turn takes longer: the rewrite (about 6s with codex at medium effort)
   plus the echo pass (about 5s).
 - The agent sees the rewrite, unlike Claude Code's display-only rewrite.
-- Under `agy -p` the echo is printed right after the original, with no
-  divider line (the hook strips the divider).
+- The echo uses the same block as Claude Code's append mode: a
+  `────────────────────────` rule, the `💬 In plain **…**:` label, then the
+  rewrite. Under `agy -p` it is printed right after the original.
 - The hook payload differed from the docs in testing. `terminationReason` was
   `NO_TOOL_CALL`, and `transcriptPath` pointed at `transcript_full.jsonl`. The
   hook accepts both forms.
